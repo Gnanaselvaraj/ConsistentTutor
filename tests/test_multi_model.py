@@ -48,8 +48,7 @@ def test_model_routing():
         # Create multi-model LLM directly
         llm = MultiModelLLM(
             reasoning_model="qwen2.5:14b-instruct-q4_K_M",
-            generation_model="llama3.1:8b",
-            fast_model="llama3:latest"
+            generation_model="llama3.1:8b"
         )
         
         print("\n📋 Testing different task types:")
@@ -68,8 +67,8 @@ def test_model_routing():
         print(f"   Response length: {len(response)} chars")
         print(f"   Response: {response}")
         
-        # Test QUICK_CHECK (Llama3)
-        print("\n3. QUICK_CHECK Task (should use Llama3 - fast):")
+        # Test QUICK_CHECK (Llama3.1-8B with lower temperature)
+        print("\n3. QUICK_CHECK Task (should use Llama3.1-8B, temp=0.1):")
         quick_prompt = "Is this content relevant to the question about markets? Answer yes or no only."
         response = llm.invoke(quick_prompt, task_type=TaskType.QUICK_CHECK)
         print(f"   Response: {response}")
@@ -143,11 +142,11 @@ def test_full_rag_with_multi_model():
 def main():
     """Run all tests"""
     print("\n" + "="*70)
-    print("MULTI-MODEL ARCHITECTURE TEST SUITE")
+    print("2-MODEL ARCHITECTURE TEST SUITE")
     print("Testing task-specialized LLM routing with:")
-    print("  - Qwen2.5-14B (Q4) for meta-reasoning")
-    print("  - Llama3.1-8B for answer generation")
-    print("  - Llama3 for quick checks")
+    print("  - Qwen2.5-14B-Q4 (9GB) for complex reasoning")
+    print("  - Llama3.1-8B (5GB) for generation + quick checks")
+    print("  - Total RAM: 14GB (26% less than 3-model approach)")
     print("="*70)
     
     results = []
