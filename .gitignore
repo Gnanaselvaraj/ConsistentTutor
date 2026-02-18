@@ -16,3 +16,14 @@ env/
 .coverage
 *.sqlite
 *.db
+.cache/
+logs/
+*.log
+
+# Vector database - regenerate from PDFs
+vector_db/
+
+# Debug outputs
+debug_*.txt
+*_output.txt
+simple_test*.txt
