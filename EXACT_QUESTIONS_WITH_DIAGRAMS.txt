@@ -1,0 +1,111 @@
+================================================================
+NATURAL TUTORING QUESTIONS THAT WILL SHOW DIAGRAMS
+================================================================
+
+These are NATURAL questions students would ask a tutor.
+All questions will retrieve relevant diagrams from the textbook.
+
+BEST QUESTIONS (Natural + High Match):
+================================
+
+1. "What is the organizational structure of a company? Explain."
+   → Will show: Organization structure diagrams
+   → Match: 0.328 | Pages: 277, 274
+
+2. "Explain the process of company formation step by step"
+   → Will show: Company formation flowcharts
+   → Match: 0.324 | Pages: 277, 274
+
+3. "What is the accounting equation? Explain with example"
+   → Will show: Accounting equation diagrams
+   → Match: 0.319 | Page: 274
+
+4. "What is money market and its structure?"
+   → Will show: Money market classification diagrams
+   → Match: 0.311 | Pages: 35, 228
+
+5. "Explain the structure of capital market in detail"
+   → Will show: Capital market structure charts
+   → Match: 0.310 | Pages: 228, 274
+
+
+COMMERCE TOPIC QUESTIONS (All Natural):
+================================
+
+6. "How does the stock exchange work? Explain the process"
+   → Will show: Stock exchange process flowcharts
+   → Match: 0.288 | Pages: 228, 274
+
+7. "What is primary market? Explain its structure"
+   → Will show: Primary market structure diagrams
+   → Match: 0.293 | Pages: 274, 228
+
+8. "Explain secondary market and how it differs from primary market"
+   → Will show: Market structure comparison diagrams
+   → Match: 0.287 | Pages: 123, 228
+
+9. "What are the types of financial markets? Classify them"
+   → Will show: Financial market classification trees
+   → Match: 0.308 | Pages: 274, 35
+
+10. "Explain the balance sheet format with an example"
+    → Will show: Balance sheet format diagrams
+    → Match: 0.300 | Page: 274
+
+11. "What is profit and loss statement? Explain"
+    → Will show: P&L statement formats
+    → Match: 0.280 | Page: 72
+
+
+MORE NATURAL QUESTIONS:
+================================
+
+- "What are capital market instruments? List and explain"
+- "Who are the participants in financial markets?"
+- "Explain the trading mechanism in stock exchange"
+- "What is the role of intermediaries in securities trading?"
+
+
+================================================================
+WHY THESE WORK BETTER:
+================================================================
+
+❌ BAD: "organizational structure diagram"
+   → Sounds like search query, not tutoring question
+   → LLM gets confused about intent
+
+✅ GOOD: "What is the organizational structure of a company?"
+   → Natural student question
+   → Clear intent to learn
+   → LLM understands how to teach
+
+❌ BAD: "accounting equation diagram"
+   → Just keywords, no context
+
+✅ GOOD: "What is the accounting equation? Explain with example"
+   → Complete question
+   → Clear what student wants to learn
+   → Natural conversation flow
+
+
+================================================================
+TIPS FOR ASKING QUESTIONS:
+================================================================
+
+1. Start with: "What is...", "Explain...", "How does..."
+2. Be specific about the topic
+3. Ask as if talking to a real tutor
+4. Avoid just keywords - use complete sentences
+
+Examples:
+✅ "What is money market and how is it different from capital market?"
+✅ "Explain the organizational structure of companies"
+✅ "How does the stock exchange process work?"
+✅ "What are the main types of financial markets?"
+
+❌ "money market diagram"
+❌ "company structure chart"
+❌ "balance sheet format"
+
+================================================================
+

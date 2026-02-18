@@ -1,0 +1,15 @@
+{
+  "topics_studied": {
+    "Commerce - 12 - TN (Tamil Nadu)::what is a primary market": 1,
+    "Commerce - 12 - TN (Tamil Nadu)::Secondary Market": 1,
+    "Computer Science - 12 - Government of Tamil Nadu::what are tuples in python explain": 1,
+    "Computer Science - 12 - Government of Tamil Nadu::explain interface and implementation differences with diagrams": 1,
+    "Computer Science - 12 - Government of Tamil Nadu::what is square of number algorithm explain": 1
+  },
+  "questions_asked": [
+    {
+      "timestamp": "2026-02-18T16:37:31.971640",
+      "question": "what is a primary market",
+      "topic": "what is a primary market",
+      "subject": "Commerce - 12 - TN (Tamil Nadu)",
+      "confidence": 
