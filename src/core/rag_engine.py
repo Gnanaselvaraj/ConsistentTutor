@@ -28,13 +28,12 @@ class ConsistentTutorRAG:
         # Initialize LLM system - multi-model for task-specialized intelligence
         if use_multi_model:
             self.llm = MultiModelLLM(
-                reasoning_model="qwen2.5:14b-instruct-q4_K_M",  # 14B quantized for meta-reasoning
-                generation_model="llama3.1:8b",  # Fast, friendly for answers
-                fast_model="llama3:latest",  # Quick checks
+                reasoning_model="qwen2.5:14b-instruct-q4_K_M",  # 14B quantized, 9GB - complex reasoning
+                generation_model="llama3.1:8b",  # 8B, 5GB - generation and quick checks
                 temperature=0.7
             )
             self.use_multi_model = True
-            logger.info("🎯 Multi-model architecture enabled: Qwen2.5-14B (reasoning) + Llama3.1 (generation) + Llama3 (fast)")
+            logger.info("🎯 2-Model architecture: Qwen2.5-14B (reasoning, 9GB) + Llama3.1-8B (generation+checks, 5GB) = 14GB total")
         else:
             self.llm = OllamaLLM()
             self.use_multi_model = False

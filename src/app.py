@@ -394,13 +394,15 @@ if active_tab_clean == "Knowledge Base":
             """Use LLM to analyze filename and PDF content intelligently"""
             try:
                 # STEP 1: Extract sample content from first few pages
-                from pypdf import PdfReader
-                reader = PdfReader(pdf_path)
+                import fitz  # pymupdf
+                doc = fitz.open(pdf_path)
                 sample_text = ""
                 # Read first 3-5 pages
-                for i in range(min(5, len(reader.pages))):
-                    page_text = reader.pages[i].extract_text()
+                for i in range(min(5, len(doc))):
+                    page = doc[i]
+                    page_text = page.get_text()
                     sample_text += page_text[:2000] if page_text else ""
+                doc.close()
                 
                 # STEP 2: Intelligent analysis with FILENAME as PRIMARY source
                 prompt = f"""Analyze this document intelligently to create a descriptive name.
@@ -413,17 +415,19 @@ CRITICAL RULES:
 1. FILENAME is the PRIMARY and MOST RELIABLE source for subject identification
 2. If filename clearly indicates "Computer Science" → use "Computer Science" (not Commerce!)
 3. If filename clearly indicates "Commerce" → use "Commerce" (not Computer Science!)
-4. Content should only ENHANCE the filename analysis, not override it
+4. Use SHORT board names: "TN", "CBSE", "ICSE", "Karnataka", etc. NOT "Government of Tamil Nadu"
 5. Document types can be: textbook, study notes, tutor notes, practice material, reference guide, etc.
 
 OUTPUT FORMAT (exactly 3 parts separated by |):
-[Subject from filename] | [Class/Level from content or filename] | [Board/Source from content or "General"]
+[Subject from filename] | [Class/Level from content or filename] | [SHORT Board name or "General"]
 
 EXAMPLES:
-File: "Class_12_Computer_Science_English_Medium-2024.pdf" → Computer Science | Class 12 | General
-File: "Class_12_Commerce_English_Medium-2024.pdf" → Commerce | Class 12 | General  
-File: "Physics_Notes_Grade_11_CBSE.pdf" → Physics | Grade 11 | CBSE
+File: "Class_12_Computer_Science_English_Medium-2024.pdf" → Computer Science | 12 | TN
+File: "Class_12_Commerce_English_Medium-2024.pdf" → Commerce | 12 | TN  
+File: "Physics_Notes_Grade_11_CBSE.pdf" → Physics | 11 | CBSE
 File: "Accountancy_Study_Material.pdf" → Accountancy | General | General
+
+Use SHORT abbreviations: TN (not "Government of Tamil Nadu"), KA (not "Karnataka Board"), etc.
 
 RESPOND WITH ONLY THE 3-PART FORMAT:"""
                 
@@ -458,6 +462,26 @@ RESPOND WITH ONLY THE 3-PART FORMAT:"""
                             
                             board_part = re.sub(r'^\d+\.?\s+', '', board_part)
                             board_part = re.sub(r'^(Subject|Class|Board|Part)\s*:?\s*', '', board_part, flags=re.IGNORECASE)
+                            
+                            # Clean verbose board names
+                            board_replacements = {
+                                'Government of Tamil Nadu': 'TN',
+                                'Tamil Nadu State Board': 'TN',
+                                'Tamil Nadu Board': 'TN',
+                                'Tamil Nadu': 'TN',
+                                'Karnataka State Board': 'Karnataka',
+                                'Maharashtra State Board': 'Maharashtra',
+                                'CBSE Board': 'CBSE',
+                                'ICSE Board': 'ICSE',
+                                'State Board': 'General'
+                            }
+                            for verbose, short in board_replacements.items():
+                                if verbose.lower() in board_part.lower():
+                                    board_part = short
+                                    break
+                            
+                            # Clean "Class" prefix from level
+                            level_part = re.sub(r'^(Class|Grade|Standard)\s+', '', level_part, flags=re.IGNORECASE)
                             
                             # Validate and build result
                             if subject_part and len(subject_part) > 2:

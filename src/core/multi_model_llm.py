@@ -20,24 +20,27 @@ class MultiModelLLM:
     
     def __init__(self, 
                  reasoning_model: str = "qwen2.5:14b",
-                 generation_model: str = "llama3.1:8b", 
-                 fast_model: str = "llama3:latest",
+                 generation_model: str = "llama3.1:8b",
                  temperature: float = 0.2):
         """
-        Initialize multi-model system.
+        Initialize 2-model architecture.
         
         Args:
-            reasoning_model: Best model for complex reasoning (meta-prompting, strategy)
-            generation_model: Best model for content generation (answers)
-            fast_model: Fast model for simple checks (relevance, validation)
+            reasoning_model: Large model for complex reasoning (Qwen2.5-14B, 9GB)
+            generation_model: Fast model for generation and quick checks (Llama3.1-8B, 5GB)
             temperature: Default temperature for generation
+            
+        Design rationale:
+        - Qwen2.5-14B (9GB): META_REASONING, ANALYSIS - complex contextual tasks
+        - Llama3.1-8B (5GB): ANSWER_GENERATION, QUICK_CHECK - all other tasks
+        - Total RAM: 14GB (instead of 19GB with redundant Llama3)
         """
         from .llm import OllamaLLM
         
         self.models = {
             TaskType.META_REASONING: OllamaLLM(model=reasoning_model, temperature=temperature),
             TaskType.ANSWER_GENERATION: OllamaLLM(model=generation_model, temperature=temperature),
-            TaskType.QUICK_CHECK: OllamaLLM(model=fast_model, temperature=0.1),  # Lower temp for consistency
+            TaskType.QUICK_CHECK: OllamaLLM(model=generation_model, temperature=0.1),  # Same model, lower temp
             TaskType.ANALYSIS: OllamaLLM(model=reasoning_model, temperature=temperature)
         }
         
@@ -101,9 +104,8 @@ class MultiModelLLM:
 from .multi_model_llm import MultiModelLLM, TaskType
 
 self.llm = MultiModelLLM(
-    reasoning_model="qwen2.5:14b",      # Best for meta-prompting
-    generation_model="llama3.1:8b",    # Good for answers
-    fast_model="llama3:latest"          # Fast for checks
+    reasoning_model="qwen2.5:14b-instruct-q4_K_M",  # Complex reasoning (9GB)
+    generation_model="llama3.1:8b"                   # Generation + quick checks (5GB)
 )
 
 # In _generate_dynamic_prompt:
