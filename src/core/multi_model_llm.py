@@ -38,21 +38,22 @@ class MultiModelLLM:
         from .llm import OllamaLLM
         
         self.models = {
-            TaskType.META_REASONING: OllamaLLM(model=reasoning_model, temperature=temperature),
-            TaskType.ANSWER_GENERATION: OllamaLLM(model=generation_model, temperature=temperature),
-            TaskType.QUICK_CHECK: OllamaLLM(model=generation_model, temperature=0.1),  # Same model, lower temp
-            TaskType.ANALYSIS: OllamaLLM(model=reasoning_model, temperature=temperature)
+            TaskType.META_REASONING: OllamaLLM(model=reasoning_model, temperature=temperature, num_predict=256),  # Short strategic outputs
+            TaskType.ANSWER_GENERATION: OllamaLLM(model=generation_model, temperature=temperature, num_predict=600),  # Balanced educational answers (3-4 paragraphs)
+            TaskType.QUICK_CHECK: OllamaLLM(model=generation_model, temperature=0.1, num_predict=32),  # Ultra-fast yes/no checks
+            TaskType.ANALYSIS: OllamaLLM(model=reasoning_model, temperature=temperature, num_predict=512)  # Thoughtful analyses
         }
         
         self.task_stats = {task: {"calls": 0, "total_time": 0.0} for task in TaskType}
         
-    def invoke(self, prompt: str, task_type: TaskType = TaskType.ANSWER_GENERATION) -> str:
+    def invoke(self, prompt: str, task_type: TaskType = TaskType.ANSWER_GENERATION, max_tokens: int = None) -> str:
         """
         Invoke appropriate model for the task.
         
         Args:
             prompt: Input prompt
             task_type: Type of task to perform
+            max_tokens: Optional override for token limit (uses task default if None)
             
         Returns:
             Model response
@@ -61,7 +62,7 @@ class MultiModelLLM:
         start = time.time()
         
         model = self.models[task_type]
-        response = model.invoke(prompt)
+        response = model.invoke(prompt, max_tokens=max_tokens) if max_tokens else model.invoke(prompt)
         
         # Track stats
         elapsed = time.time() - start
@@ -70,19 +71,23 @@ class MultiModelLLM:
         
         return response
     
-    def stream(self, prompt: str, task_type: TaskType = TaskType.ANSWER_GENERATION):
+    def stream(self, prompt: str, task_type: TaskType = TaskType.ANSWER_GENERATION, max_tokens: int = None):
         """
         Stream response from appropriate model.
         
         Args:
             prompt: Input prompt
             task_type: Type of task to perform
+            max_tokens: Optional override for token limit
             
         Yields:
             Response chunks
         """
         model = self.models[task_type]
-        yield from model.stream(prompt)
+        if max_tokens:
+            yield from model.stream(prompt, max_tokens=max_tokens)
+        else:
+            yield from model.stream(prompt)
     
     def get_stats(self) -> dict:
         """Get usage statistics for each task type"""

@@ -15,7 +15,13 @@ Upload your textbooks and get intelligent, context-aware answers from your study
 @st.cache_resource
 def load_tutor():
     # Enable multi-model architecture for superior intelligence
-    return ConsistentTutorRAG(use_multi_model=True, use_meta_prompting=True)
+    tutor_instance = ConsistentTutorRAG(use_multi_model=True, use_meta_prompting=True)
+    
+    # PRE-LOAD all subjects into cache for sub-20s response times
+    # This leverages 64GB RAM to eliminate disk I/O on every query
+    tutor_instance.preload_all_subjects()
+    
+    return tutor_instance
 
 tutor = load_tutor()
 

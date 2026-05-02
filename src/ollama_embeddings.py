@@ -25,13 +25,15 @@ def embed_texts_batched(texts, batch_size=32, workers=1, progress_cb=None):
 
     Returns a numpy array of shape (len(texts), dim) with dtype float32.
     The `workers` parameter controls how many threads encode batches in parallel.
+    
+    MEMORY OPTIMIZATION (v2): Increased GPU batch size from 64 to 128 to fully utilize GPU memory.
     """
     if not texts:
         return np.zeros((0, _MODEL.get_sentence_embedding_dimension()), dtype="float32")
 
-    # Use larger batch size for GPU
+    # Use larger batch size for GPU (128 for better GPU utilization)
     if DEVICE == "cuda":
-        batch_size = max(batch_size, 64)
+        batch_size = max(batch_size, 128)
 
     batches = [texts[i:i + batch_size] for i in range(0, len(texts), batch_size)]
     vectors = [None] * len(batches)

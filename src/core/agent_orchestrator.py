@@ -6,6 +6,13 @@ from dataclasses import dataclass
 from enum import Enum
 import logging
 
+# Import TaskType for multi-model optimization
+try:
+    from .multi_model_llm import TaskType
+    HAS_TASK_TYPE = True
+except ImportError:
+    HAS_TASK_TYPE = False
+
 logger = logging.getLogger(__name__)
 
 class QuestionType(Enum):
@@ -84,7 +91,11 @@ TOPIC: <topic name(s)>
 EXPANDED: <fully expanded question with NO vague references>"""
 
         try:
-            response = self.llm.invoke(prompt).strip()
+            # OPTIMIZATION: Use META_REASONING model for faster analysis (14B reasoning vs 8B generation)
+            if HAS_TASK_TYPE and hasattr(self.llm, 'invoke'):
+                response = self.llm.invoke(prompt, task_type=TaskType.META_REASONING, max_tokens=256).strip()
+            else:
+                response = self.llm.invoke(prompt, max_tokens=256).strip()
             logger.info(f"LLM Analysis - Question: '{question}' | Response: {response}")
             
             # Parse response
@@ -130,7 +141,7 @@ Question: {question}
 Task: Expand this question to be self-contained by replacing pronouns (it, them, their, more, etc.) with actual topic names from the conversation.
 
 Expanded question:"""
-                expanded = self.llm.invoke(fallback_prompt).strip()
+                expanded = self.llm.invoke(fallback_prompt, max_tokens=128).strip()
             except:
                 expanded = question
             
@@ -149,7 +160,11 @@ Expanded question:"""
 Question: "{question}"
 
 Answer 'yes' if it's an educational question, 'no' if it's clearly entertainment/casual/off-topic.
-Reply ONLY 'yes' or 'no':"""
+Reply ONLY '# OPTIMIZATION: Use QUICK_CHECK model for fast binary decision
+            if HAS_TASK_TYPE and hasattr(self.llm, 'invoke'):
+                response = self.llm.invoke(prompt, task_type=TaskType.QUICK_CHECK).strip().lower()
+            else:
+                yes' or 'no':"""
         
         try:
             response = self.llm.invoke(prompt).strip().lower()
