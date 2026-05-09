@@ -35,16 +35,26 @@ class TutorOrchestrator:
         Returns:
             Formatted HTML answer
         """        
+        import time
+        stage_times = {}
+        total_start = time.time()
+        
         try:
             # STAGE 1: Context Resolution
+            stage_start = time.time()
             resolved_q = self._resolve_with_context(question, chat_history)
+            stage_times['1_context_resolution'] = time.time() - stage_start
             
             # STAGE 2: Academic Validation
+            stage_start = time.time()
             if not self._is_academic_appropriate(resolved_q):
                 return self._render_non_academic_response()
+            stage_times['2_academic_validation'] = time.time() - stage_start
             
             # STAGE 3: KB Search & Load
+            stage_start = time.time()
             search_results = self._search_knowledge_base(resolved_q, subject)
+            stage_times['3_kb_search'] = time.time() - stage_start
             
             if not search_results['texts']:
                 return self._render_no_results_response(question, subject)
@@ -55,13 +65,27 @@ class TutorOrchestrator:
             #     return self._render_subject_mismatch_response(question, subject)
             
             # STAGE 5: Generate Answer
-            return self._generate_answer(
+            stage_start = time.time()
+            result = self._generate_answer(
                 original_q=question,
                 resolved_q=resolved_q,
                 subject=subject,
                 search_results=search_results,
                 chat_history=chat_history
             )
+            stage_times['5_answer_generation'] = time.time() - stage_start
+            
+            stage_times['TOTAL'] = time.time() - total_start
+            
+            # Log timing breakdown
+            print("\n" + "="*60)
+            print("⏱️  STAGE TIMING BREAKDOWN")
+            print("="*60)
+            for stage, duration in stage_times.items():
+                print(f"{stage:.<45} {duration:>6.2f}s")
+            print("="*60 + "\n")
+            
+            return result
             
         except Exception as e:
             return self._render_error_response(str(e))
@@ -131,10 +155,15 @@ Reply ONLY "yes" or "no":"""
     
     def _search_knowledge_base(self, question: str, subject: str) -> Dict[str, Any]:
         """Stage 3: Search the KB with multimodal support"""
+        import time
+        substage_times = {}
+        
         # Ensure correct KB loaded
+        substage_start = time.time()
         if not self.rag.vector_store or self.rag.current_subject != subject:
             self.rag.load_subject(subject)
             self.rag.current_subject = subject
+        substage_times['3a_subject_loading'] = time.time() - substage_start
         
         from .embeddings import embed_texts_batched
         from .image_embeddings import embed_text_for_image_search
@@ -149,13 +178,29 @@ Reply ONLY "yes" or "no":"""
             wants_visual = any(kw in question.lower() for kw in visual_kw)
             
             # Search both text and images
+            substage_start = time.time()
             q_vec_text = embed_texts_batched([question])
+            substage_times['3b_text_embedding'] = time.time() - substage_start
+            
+            substage_start = time.time()
             q_vec_image = embed_text_for_image_search(question)
+            substage_times['3c_image_embedding'] = time.time() - substage_start
+            
             k_images = 8 if wants_visual else 3
             
+            # Intelligent k_text based on query complexity
+            k_text = 10 if len(question.split()) < 8 else 15  # Smaller for simple queries
+            
+            substage_start = time.time()
             results = self.rag.vector_store.search_multimodal(
-                q_vec_text, q_vec_image, k_text=15, k_images=k_images
+                q_vec_text, q_vec_image, k_text=k_text, k_images=k_images
             )
+            substage_times['3d_vector_search'] = time.time() - substage_start
+            
+            # Log substage breakdown
+            print("\n   📊 KB SEARCH SUBSTAGES:")
+            for substage, duration in substage_times.items():
+                print(f"   {substage:.<42} {duration:>6.2f}s")
             
             return {
                 'texts': results['texts'],
@@ -163,9 +208,22 @@ Reply ONLY "yes" or "no":"""
                 'has_images': results['has_visual']
             }
         else:
-            # Text-only
+            # Text-only - intelligent k based on query complexity
+            substage_start = time.time()
             q_vec = embed_texts_batched([question])
-            text_results = self.rag.vector_store.search(q_vec, k=50, threshold=0.5)
+            substage_times['3b_text_embedding'] = time.time() - substage_start
+            
+            # Simple questions need less context
+            k = 10 if len(question.split()) < 10 else (15 if len(question.split()) < 20 else 20)
+            
+            substage_start = time.time()
+            text_results = self.rag.vector_store.search(q_vec, k=k, threshold=0.5)
+            substage_times['3d_vector_search'] = time.time() - substage_start
+            
+            # Log substage breakdown
+            print("\n   📊 KB SEARCH SUBSTAGES:")
+            for substage, duration in substage_times.items():
+                print(f"   {substage:.<42} {duration:>6.2f}s")
             
             return {
                 'texts': text_results,
@@ -199,7 +257,10 @@ Reply ONLY "yes" or "no":"""
     def _generate_answer(self, original_q: str, resolved_q: str, subject: str, 
                          search_results: Dict, chat_history: List[Dict]) -> str:
         """Stage 5: Generate the final answer"""
+        import time
+        substage_times = {}
         
+        substage_start = time.time()
         texts = search_results['texts']
         images = search_results['images']
         has_images = search_results['has_images']
@@ -208,9 +269,17 @@ Reply ONLY "yes" or "no":"""
         scores = [r[1] for r in texts]
         max_conf = max(scores) if scores else 0
         avg_conf = sum(scores) / len(scores) if scores else 0
+        substage_times['5a_confidence_calc'] = time.time() - substage_start
         
-        # Build context
-        syllabus_text = "\n\n".join([r[0] for r in texts])
+        # Build context - only use top-scored chunks
+        # Intelligently limit context to avoid overloading LLM
+        # BUT always try to answer even with limited chunks
+        substage_start = time.time()
+        if len(texts) == 0:
+            return "I don't have relevant content in the syllabus to answer this question. Could you rephrase or ask about topics covered in your textbook?"
+        
+        top_texts = texts[:min(len(texts), 10)]  # Max 10 chunks regardless of k
+        syllabus_text = "\n\n".join([r[0] for r in top_texts])
         
         # Build conversation context
         conv_context = ""
@@ -219,31 +288,58 @@ Reply ONLY "yes" or "no":"""
             for turn in chat_history[-2:]:
                 if 'user' in turn:
                     conv_context += f"User: {turn['user']}\n"
+        substage_times['5b_context_building'] = time.time() - substage_start
+        
+        # Detect question type for intelligent answer length
+        substage_start = time.time()
+        q_lower = original_q.lower()
+        is_explanation = any(word in q_lower for word in ['explain', 'how', 'why', 'describe', 'discuss'])
+        is_problem_solving = any(word in q_lower for word in ['solve', 'calculate', 'derive', 'prove', 'find'])
+        is_simple = any(word in q_lower for word in ['what is', 'define', 'who is', 'when'])
+        
+        # Adaptive prompt based on question type
+        if is_problem_solving:
+            instruction = "Provide a detailed step-by-step solution. Show all working and explain each step."
+        elif is_explanation:
+            instruction = "Provide a thorough explanation. Use examples if helpful. Be clear and educational."
+        elif len(texts) < 3:
+            instruction = "Based on the limited content available, provide what information you can. Acknowledge if more context would be helpful."
+        else:
+            instruction = "Provide a clear, focused answer. Be direct and educational."
         
         # Generate answer with LLM
-        prompt = f"""You are a friendly tutor helping a student.
+        prompt = f"""You are a helpful tutor. Answer the student's question using the textbook content provided.
 
 {conv_context}
 
-Current Question: "{original_q}"
+Question: "{original_q}"
 
 Textbook Content:
 {syllabus_text}
 
-Instructions:
-- Answer the current question clearly and thoroughly
-- Use conversation context only to understand references (it, that, more)
-- For general questions, provide comprehensive overview
-- For specific questions, focus on that aspect
-- Be conversational and educational
-- Use examples when helpful
-
-Your answer:"""
+{instruction}"""
         
-        answer_text = self.llm.invoke(prompt)
+        # Intelligent max_tokens based on question type and complexity
+        if is_problem_solving:
+            max_tokens = 1200  # Need space for step-by-step solutions
+        elif is_explanation:
+            max_tokens = 1000  # Detailed explanations
+        elif is_simple:
+            max_tokens = 500  # Brief definitions
+        elif len(texts) < 3:
+            max_tokens = 600  # Limited info, shorter answer
+        else:
+            max_tokens = 800  # Default balanced response
+        substage_times['5c_prompt_preparation'] = time.time() - substage_start
+        
+        # LLM invocation - typically the slowest part
+        substage_start = time.time()
+        answer_text = self.llm.invoke(prompt, max_tokens=max_tokens)
+        substage_times['5d_llm_invocation'] = time.time() - substage_start
         
         # Format response
-        return self._render_answer_response(
+        substage_start = time.time()
+        result = self._render_answer_response(
             question=original_q,
             answer=answer_text,
             subject=subject,
@@ -252,6 +348,14 @@ Your answer:"""
             sources=texts,
             images=images if has_images else None
         )
+        substage_times['5e_response_formatting'] = time.time() - substage_start
+        
+        # Log substage breakdown
+        print("\n   📊 ANSWER GENERATION SUBSTAGES:")
+        for substage, duration in substage_times.items():
+            print(f"   {substage:.<42} {duration:>6.2f}s")
+        
+        return result
     
     def _render_answer_response(self, question: str, answer: str, subject: str,
                                 confidence: float, num_sources: int, sources: List,

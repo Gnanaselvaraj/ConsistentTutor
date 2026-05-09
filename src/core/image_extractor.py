@@ -33,8 +33,17 @@ def extract_images_from_pdf(pdf_path: str, min_width: int = 100, min_height: int
                 base_image = doc.extract_image(xref)
                 image_bytes = base_image["image"]
                 
-                # Convert to PIL Image
-                pil_image = Image.open(io.BytesIO(image_bytes))
+                # Convert to PIL Image with error handling for corrupted images
+                try:
+                    pil_image = Image.open(io.BytesIO(image_bytes))
+                    # Try to load the image data to catch format errors
+                    pil_image.load()
+                    # Convert to RGB if needed (handles JPEG2000, CMYK, etc.)
+                    if pil_image.mode not in ('RGB', 'L'):
+                        pil_image = pil_image.convert('RGB')
+                except (OSError, IOError) as img_err:
+                    # Skip corrupted or unsupported image formats (JPEG2000, etc.)
+                    continue
                 
                 # Filter small images (likely icons/logos)
                 if pil_image.width < min_width or pil_image.height < min_height:

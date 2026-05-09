@@ -6,6 +6,13 @@ import logging
 from typing import Dict, Any
 from dataclasses import dataclass
 
+# Import TaskType for multi-model optimization
+try:
+    from .multi_model_llm import TaskType
+    HAS_TASK_TYPE = True
+except ImportError:
+    HAS_TASK_TYPE = False
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,6 +36,145 @@ class RetrievalStrategyAgent:
     def __init__(self, llm, student_profile=None):
         self.llm = llm
         self.student_profile = student_profile  # Rolling long-term memory
+    
+    def determine_complete_strategy(self, question: str, analyzed_question, subject: str) -> tuple:
+        """
+        OPTIMIZATION: Combined strategy + threshold determination in ONE LLM call.
+        Saves ~2-3s by eliminating redundant LLM roundtrip.
+        
+        Returns: (RetrievalStrategy, thresholds_dict)
+        """
+        # Build student context from long-term memory
+        student_context = ""
+        if self.student_profile:
+            recent_topics = list(self.student_profile.topics_studied.keys())[-5:]
+            weak_areas = list(self.student_profile.weak_areas)
+            style = self.student_profile.preferred_explanation_style
+            
+            student_context = f"""
+STUDENT LEARNING PROFILE (Session Memory):
+- Recent topics studied: {', '.join(recent_topics) if recent_topics else 'First session'}
+- Weak areas needing more context: {', '.join(weak_areas) if weak_areas else 'None identified yet'}
+- Preferred style: {style} explanations
+- Total questions this session: {len(self.student_profile.questions_asked)}
+"""
+        
+        prompt = f"""You are an adaptive retrieval strategy expert for educational content.
+
+SUBJECT: {subject}
+ORIGINAL QUESTION: {question}
+EXPANDED QUESTION: {analyzed_question.expanded}
+QUESTION TYPE: {analyzed_question.type.value}
+{student_context}
+
+DECISIONS TO MAKE:
+
+1. SEARCH_DEPTH:
+   - "shallow" = Simple definitions/facts
+   - "medium" = Standard explanations (most questions)
+   - "deep" = Complex multi-concept analysis
+
+2. MULTIMODAL_PRIORITY:
+   - "text_only" = No visual content needed
+   - "balanced" = Text primary, images supportive (most questions)
+   - "visual_heavy" = Diagrams/charts CRITICAL for understanding
+
+3. CONTEXT_WINDOW (number of text chunks):
+   - Simple: 5-8 chunks
+   - Medium: 10-15 chunks
+   - Complex: 15-20 chunks
+   - Output ONLY a single integer
+
+4. REQUIRES_COMPARISON: yes/no
+
+5. FOCUS_AREAS: 2-4 specific aspects (comma-separated)
+
+6. TEXT_THRESHOLD (0.0-1.0 similarity):
+   - **Be LENIENT**: 0.20-0.30 range
+   - Lower = broader recall (LLM verifies relevance later)
+   - Standard: 0.25
+
+7. IMAGE_THRESHOLD (0.0-1.0 similarity):
+   - **Very LENIENT**: 0.15-0.25 range
+   - Diagrams have low similarity, be generous
+   - Standard: 0.18
+
+OUTPUT FORMAT:
+SEARCH_DEPTH: <shallow|medium|deep>
+MULTIMODAL_PRIORITY: <text_only|balanced|visual_heavy>
+CONTEXT_WINDOW: <integer>
+REQUIRES_COMPARISON: <yes|no>
+FOCUS_AREAS: <area1, area2, area3>
+TEXT_THRESHOLD: 0.XX
+IMAGE_THRESHOLD: 0.XX"""
+
+        try:
+            # OPTIMIZATION: Use META_REASONING for strategic decisions
+            if HAS_TASK_TYPE and hasattr(self.llm, 'invoke'):
+                response = self.llm.invoke(prompt, task_type=TaskType.META_REASONING).strip()
+            else:
+                response = self.llm.invoke(prompt).strip()
+            logger.info(f"Combined Strategy LLM Response: {response}")
+            
+            # Parse LLM response
+            lines = {line.split(':', 1)[0].strip(): line.split(':', 1)[1].strip() 
+                    for line in response.split('\n') if ':' in line}
+            
+            # Parse strategy components
+            search_depth = lines.get('SEARCH_DEPTH', 'medium').lower()
+            multimodal = lines.get('MULTIMODAL_PRIORITY', 'balanced').lower()
+            
+            # Parse context window - extract first number
+            context_str = lines.get('CONTEXT_WINDOW', '12')
+            import re
+            context_match = re.search(r'(\d+)', context_str)
+            context_window = int(context_match.group(1)) if context_match else 12
+            
+            requires_comp = 'yes' in lines.get('REQUIRES_COMPARISON', 'no').lower()
+            focus_raw = lines.get('FOCUS_AREAS', 'general understanding')
+            focus_areas = [f.strip() for f in focus_raw.split(',')]
+            
+            # Parse thresholds
+            text_str = lines.get('TEXT_THRESHOLD', '0.25')
+            text_match = re.search(r'(\d+\.?\d*)', text_str)
+            text_thresh = float(text_match.group(1)) if text_match else 0.25
+            
+            image_str = lines.get('IMAGE_THRESHOLD', '0.18')
+            image_match = re.search(r'(\d+\.?\d*)', image_str)
+            image_thresh = float(image_match.group(1)) if image_match else 0.18
+            
+            # Safety caps
+            text_thresh = max(0.20, min(0.35, text_thresh))
+            image_thresh = max(0.15, min(0.30, image_thresh))
+            
+            strategy = RetrievalStrategy(
+                search_depth=search_depth,
+                multimodal_priority=multimodal,
+                context_window=context_window,
+                requires_comparison=requires_comp,
+                focus_areas=focus_areas
+            )
+            
+            thresholds = {
+                'text': text_thresh,
+                'image': image_thresh
+            }
+            
+            logger.info(f"Combined Strategy Result: {strategy}, Thresholds: {thresholds}")
+            return strategy, thresholds
+            
+        except Exception as e:
+            logger.warning(f"Combined strategy determination failed: {e}, using defaults")
+            # Intelligent defaults
+            strategy = RetrievalStrategy(
+                search_depth="medium",
+                multimodal_priority="balanced",
+                context_window=12,
+                requires_comparison=False,
+                focus_areas=["explanation", "examples"]
+            )
+            thresholds = {'text': 0.25, 'image': 0.18}
+            return strategy, thresholds
     
     def determine_strategy(self, question: str, analyzed_question, subject: str) -> RetrievalStrategy:
         """
@@ -73,10 +219,10 @@ DECISIONS TO MAKE:
    - "visual_heavy" = Diagrams/images are critical to understanding
 
 3. CONTEXT WINDOW (number of text chunks to retrieve):
-   - Small questions (definitions): Choose ONE number between 30-40
-   - Medium questions (explanations): Choose ONE number between 50-70
-   - Large questions (comparisons, analysis): Choose ONE number between 80-100
-   - IMPORTANT: Output ONLY a single integer number, not a range
+   - Small questions (definitions, simple facts): Choose ONE number between 5-8
+   - Medium questions (explanations, concepts): Choose ONE number between 10-15
+   - Large questions (comparisons, multi-part): Choose ONE number between 15-20
+   - IMPORTANT: Output ONLY a single integer number. Be conservative - quality over quantity
 
 4. REQUIRES COMPARISON:
    - Does this question ask to compare/contrast multiple concepts? yes/no
@@ -93,7 +239,11 @@ REQUIRES_COMPARISON: <yes | no>
 FOCUS_AREAS: <comma-separated list>"""
 
         try:
-            response = self.llm.invoke(prompt).strip()
+            # OPTIMIZATION: Use META_REASONING for strategic decisions
+            if HAS_TASK_TYPE and hasattr(self.llm, 'invoke'):
+                response = self.llm.invoke(prompt, task_type=TaskType.META_REASONING).strip()
+            else:
+                response = self.llm.invoke(prompt).strip()
             logger.info(f"Retrieval Strategy LLM Response: {response}")
             
             # Parse LLM response
@@ -126,11 +276,11 @@ FOCUS_AREAS: <comma-separated list>"""
             
         except Exception as e:
             logger.warning(f"Strategy determination failed: {e}, using defaults")
-            # Intelligent defaults
+            # Intelligent defaults - optimized for speed and quality
             return RetrievalStrategy(
                 search_depth="medium",
-                multimodal_priority="balanced",  # Always balanced - let similarity decide
-                context_window=50,
+                multimodal_priority="balanced",
+                context_window=12,  # Sweet spot: enough context, fast retrieval
                 requires_comparison=False,
                 focus_areas=["explanation", "examples"]
             )
@@ -171,7 +321,11 @@ IMAGE_THRESHOLD: 0.XX
 IMAGE_COUNT: XX"""
 
         try:
-            response = self.llm.invoke(prompt).strip()
+            # OPTIMIZATION: Use META_REASONING for threshold decisions
+            if HAS_TASK_TYPE and hasattr(self.llm, 'invoke'):
+                response = self.llm.invoke(prompt, task_type=TaskType.META_REASONING).strip()
+            else:
+                response = self.llm.invoke(prompt).strip()
             logger.info(f"Threshold LLM Response: {response}")
             
             lines = {line.split(':', 1)[0].strip(): line.split(':', 1)[1].strip() 
@@ -220,9 +374,8 @@ IMAGE_COUNT: XX"""
             if strategy.multimodal_priority == "visual_heavy":
                 base_image -= 0.05  # More lenient for visuals
             
+            # FIXED: Use consistent keys 'text' and 'image' (not 'text_threshold')
             return {
-                'text_threshold': base_text,
-                'image_threshold': base_image,
-                'k_text': strategy.context_window,
-                'k_images': 15 if strategy.multimodal_priority == "visual_heavy" else 10
+                'text': base_text,
+                'image': base_image
             }

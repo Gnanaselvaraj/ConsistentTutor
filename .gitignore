@@ -27,3 +27,64 @@ vector_db/
 debug_*.txt
 *_output.txt
 simple_test*.txt
+
+# Project report documentation (not part of codebase)
+REPORT_*.md
+PROJECT_*.md
+*_REPORT*.md
+*_GUIDE.md
+*_SUMMARY.md
+*_CHECKLIST.md
+*_STATUS*.md
+FALSIFICATION_*.md
+REDUCTION_*.md
+ARCHITECTURE_DIAGRAM_*.md
+TOC_FOR_REPORT.md
+LIST_OF_*.md
+PRELIMINARY_*.md
+ACTION_SUMMARY.md
+COMPREHENSIVE_*.md
+
+# Word documents and PDFs
+*.docx
+*.doc
+*.pdf
+
+# IEEE paper LaTeX files
+*.tex
+*.bib
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.synctex.gz
+
+# Conference deadline tracking (not part of core project)
+*_conferences*.csv
+*_DEADLINES*.csv
+*CONFERENCES*.csv
+all_conferences.md
+
+# Report generation scripts
+FINALIZE_*.ps1
+RUN_*.ps1
+format_word_document.ps1
+export_diagrams.ps1
+check_deadlines.ps1
+take_screenshots.ps1
+AUTO_FORMAT_*.ps1
+
+# Report diagrams and images
+Figure_*.png
+Screenshot_*.png
+diagram_*.mmd
+architecture_diagram.html
+diagrams_export.html
+
+# Helper Python scripts for report (not core functionality)
+count_all_subjects.py
+run_query_tests.py
+
+# Data directory (contains copyrighted textbooks)
+data/pdfs/
